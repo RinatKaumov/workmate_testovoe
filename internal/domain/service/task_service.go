@@ -8,13 +8,14 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	pkgErrors "github.com/pkg/errors"
 
 	"github.com/RinatKaumov/workmate_testovoe/internal/dal/entity"
 	"github.com/RinatKaumov/workmate_testovoe/internal/dal/repository"
 	"github.com/RinatKaumov/workmate_testovoe/internal/domain/model"
 )
 
-var ErrTaskNotFound = errors.New("service: task not found")
+var ErrTaskNotFound = errors.New("task not found")
 
 // taskRepository — это интерфейс, описывающий, что именно нужно TaskService
 // от хранилища задач.
@@ -63,6 +64,7 @@ func (s *TaskService) runTask(id uuid.UUID) {
 	// Обновляем статус задачи на running
 	task, err := s.repo.GetByID(ctx, id)
 	if err != nil {
+		fmt.Printf("ошибка получения задачи в runTask: %v\n", err)
 		return // задача пропала из репо или другая ошибка
 	}
 
@@ -78,18 +80,14 @@ func (s *TaskService) runTask(id uuid.UUID) {
 	duration := 3*time.Minute + time.Duration(rand.Intn(3))*time.Minute
 	time.Sleep(duration)
 
-	// По завершении обновляем статус и результат
-	task, err = s.repo.GetByID(ctx, id)
-	if err != nil {
-		return
-	}
-
+	// По завершении обновляем статус и результат у уже имеющегося указателя
 	finished := time.Now().UTC()
 	task.Status = entity.StatusCompleted
 	task.FinishedAt = &finished
 	task.Result = "result data here"
 
 	if err := s.repo.Update(ctx, task); err != nil {
+		fmt.Printf("ошибка обновления задачи (completed): %v\n", err)
 		return
 	}
 }
@@ -99,9 +97,9 @@ func (s *TaskService) GetTask(ctx context.Context, id uuid.UUID) (*model.Task, e
 	entityTask, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
-			return nil, ErrTaskNotFound
+			return nil, pkgErrors.WithStack(ErrTaskNotFound)
 		}
-		return nil, err
+		return nil, err // Пробрасываем другие ошибки как есть
 	}
 	return toModel(entityTask)
 }
@@ -111,7 +109,7 @@ func (s *TaskService) DeleteTask(ctx context.Context, id uuid.UUID) error {
 	err := s.repo.DeleteByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
-			return ErrTaskNotFound
+			return pkgErrors.WithStack(ErrTaskNotFound)
 		}
 		return err
 	}
@@ -133,9 +131,7 @@ func (s *TaskService) ListTasks(ctx context.Context) ([]*model.Task, error) {
 	for _, taskEntity := range entityTasks {
 		taskModel, err := toModel(taskEntity)
 		if err != nil {
-			// В реальном приложении здесь может быть логирование
-			// Мы пропустим "сломанную" задачу, но не будем прерывать весь запрос
-			continue
+			return nil, err // Прерываем выполнение и возвращаем ошибку
 		}
 		tasks = append(tasks, taskModel)
 	}
@@ -161,7 +157,7 @@ func toModel(e *entity.Task) (*model.Task, error) {
 	}
 
 	return &model.Task{
-		ID:          e.ID.String(),
+		ID:          e.ID,
 		Description: e.Description,
 		Status:      model.TaskStatus(e.Status),
 		CreatedAt:   e.CreatedAt,
@@ -178,12 +174,8 @@ func toEntity(m *model.Task) (*entity.Task, error) {
 	if m == nil {
 		return nil, errors.New("cannot convert nil model task to entity")
 	}
-	parsedID, err := uuid.Parse(m.ID)
-	if err != nil {
-		return nil, fmt.Errorf("cannot parse task ID: %w", err)
-	}
 	return &entity.Task{
-		ID:          parsedID,
+		ID:          m.ID,
 		Description: m.Description,
 		Status:      entity.TaskStatus(m.Status),
 		CreatedAt:   m.CreatedAt,
