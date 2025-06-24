@@ -52,5 +52,10 @@ func main() {
 	if err := httpServer.Shutdown(ctx); err != nil {
 		log.Fatalf("Ошибка при завершении сервера: %v", err)
 	}
+
+	// Ждем завершения всех фоновых задач
+	log.Println("Ожидание завершения фоновых задач...")
+	taskService.WaitForTasks()
+
 	log.Println("Сервер остановлен корректно")
 }

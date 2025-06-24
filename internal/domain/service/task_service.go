@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -30,11 +31,17 @@ type taskRepository interface {
 // TaskService инкапсулирует бизнес-логику задач.
 type TaskService struct {
 	repo taskRepository
+	wg   sync.WaitGroup // для отслеживания активных фоновых задач
 }
 
 // NewTaskService создает новый сервис задач.
 func NewTaskService(repo taskRepository) *TaskService {
 	return &TaskService{repo: repo}
+}
+
+// WaitForTasks ждет завершения всех активных фоновых задач
+func (s *TaskService) WaitForTasks() {
+	s.wg.Wait()
 }
 
 // CreateTask создает задачу и запускает ее асинхронно.
@@ -52,8 +59,12 @@ func (s *TaskService) CreateTask(ctx context.Context, description string) (*mode
 		return nil, err
 	}
 
-	// Запускаем задачу в фоне
-	go s.runTask(entityTask.ID)
+	// Запускаем задачу в фоне с отслеживанием
+	s.wg.Add(1)
+	go func() {
+		defer s.wg.Done()
+		s.runTask(entityTask.ID)
+	}()
 
 	return toModel(entityTask)
 }
@@ -65,7 +76,7 @@ func (s *TaskService) runTask(id uuid.UUID) {
 	task, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		fmt.Printf("ошибка получения задачи в runTask: %v\n", err)
-		return // задача пропала из репо или другая ошибка
+		return
 	}
 
 	now := time.Now().UTC()
@@ -159,7 +170,7 @@ func toModel(e *entity.Task) (*model.Task, error) {
 	return &model.Task{
 		ID:          e.ID,
 		Description: e.Description,
-		Status:      model.TaskStatus(e.Status),
+		Status:      e.Status,
 		CreatedAt:   e.CreatedAt,
 		StartedAt:   e.StartedAt,
 		FinishedAt:  e.FinishedAt,
@@ -177,7 +188,7 @@ func toEntity(m *model.Task) (*entity.Task, error) {
 	return &entity.Task{
 		ID:          m.ID,
 		Description: m.Description,
-		Status:      entity.TaskStatus(m.Status),
+		Status:      m.Status,
 		CreatedAt:   m.CreatedAt,
 		StartedAt:   m.StartedAt,
 		FinishedAt:  m.FinishedAt,

@@ -1,4 +1,4 @@
-package handlers
+package handler
 
 import (
 	"log"
@@ -7,7 +7,7 @@ import (
 	"github.com/RinatKaumov/workmate_testovoe/internal/domain/service"
 )
 
-func HandleListTasks(taskService *service.TaskService) http.HandlerFunc {
+func ListTasks(taskService *service.TaskService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		tasks, err := taskService.ListTasks(r.Context())
 		if err != nil {
