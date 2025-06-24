@@ -1,4 +1,4 @@
-package handlers
+package handler
 
 import (
 	"encoding/json"
@@ -8,7 +8,7 @@ import (
 	"github.com/RinatKaumov/workmate_testovoe/internal/domain/service"
 )
 
-func HandleCreateTask(taskService *service.TaskService) http.HandlerFunc {
+func CreateTask(taskService *service.TaskService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		type request struct {
 			Description string `json:"description"`

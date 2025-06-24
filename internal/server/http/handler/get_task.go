@@ -1,4 +1,4 @@
-package handlers
+package handler
 
 import (
 	"errors"
@@ -10,7 +10,7 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-func HandleDeleteTask(taskService *service.TaskService) http.HandlerFunc {
+func GetTask(taskService *service.TaskService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		idStr := chi.URLParam(r, "id")
 
@@ -21,15 +21,17 @@ func HandleDeleteTask(taskService *service.TaskService) http.HandlerFunc {
 			return
 		}
 
-		if err := taskService.DeleteTask(r.Context(), id); err != nil {
+		task, err := taskService.GetTask(r.Context(), id)
+		if err != nil {
 			if errors.Is(err, service.ErrTaskNotFound) {
+				log.Printf("ошибка получения задачи: %v", err)
 				http.Error(w, "задача не найдена", http.StatusNotFound)
 				return
 			}
-			log.Printf("неожиданная ошибка удаления задачи: %v", err)
+			log.Printf("неожиданная ошибка получения задачи: %v", err)
 			http.Error(w, "внутренняя ошибка сервера", http.StatusInternalServerError)
 			return
 		}
-		w.WriteHeader(http.StatusNoContent)
+		WriteJSON(w, http.StatusOK, task)
 	}
 }

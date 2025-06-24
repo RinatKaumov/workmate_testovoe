@@ -7,7 +7,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 
 	"github.com/RinatKaumov/workmate_testovoe/internal/domain/service"
-	handlers "github.com/RinatKaumov/workmate_testovoe/internal/server/http/handlers"
+	handler "github.com/RinatKaumov/workmate_testovoe/internal/server/http/handler"
 )
 
 type Server struct {
@@ -26,10 +26,10 @@ func NewServer(taskService *service.TaskService) *Server {
 
 func (s *Server) configureRoutes() {
 	s.router.Use(middleware.Logger)
-	s.router.Get("/tasks", handlers.HandleListTasks(s.service))
-	s.router.Post("/tasks", handlers.HandleCreateTask(s.service))
-	s.router.Get("/tasks/{id}", handlers.HandleGetTask(s.service))
-	s.router.Delete("/tasks/{id}", handlers.HandleDeleteTask(s.service))
+	s.router.Get("/tasks", handler.ListTasks(s.service))
+	s.router.Post("/tasks", handler.CreateTask(s.service))
+	s.router.Get("/tasks/{id}", handler.GetTask(s.service))
+	s.router.Delete("/tasks/{id}", handler.DeleteTask(s.service))
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
