@@ -10,7 +10,7 @@ import (
 	"github.com/RinatKaumov/workmate_testovoe/internal/dal/entity"
 )
 
-var ErrNotFound = errors.New("task not found")
+var ErrNotFound = errors.New("not found")
 
 type TaskRepository interface {
 	Create(ctx context.Context, task *entity.Task) error
