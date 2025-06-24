@@ -1,19 +1,21 @@
 package handlers
 
 import (
-	"awesomeProject36/internal/domain/service"
+	"errors"
 	"log"
 	"net/http"
+
+	"github.com/RinatKaumov/workmate_testovoe/internal/domain/service"
 
 	"github.com/go-chi/chi/v5"
 )
 
 func HandleGetTask(taskService *service.TaskService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		id := chi.URLParam(r, "id")
+		idStr := chi.URLParam(r, "id")
 
-		// Валидация ID задачи
-		if err := validateTaskID(id); err != nil {
+		id, err := validateTaskID(idStr)
+		if err != nil {
 			log.Printf("ошибка валидации ID: %v", err)
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -21,8 +23,13 @@ func HandleGetTask(taskService *service.TaskService) http.HandlerFunc {
 
 		task, err := taskService.GetTask(r.Context(), id)
 		if err != nil {
-			log.Printf("ошибка получения задачи: %v", err)
-			http.Error(w, "задача не найдена", http.StatusNotFound)
+			if errors.Is(err, service.ErrTaskNotFound) {
+				log.Printf("ошибка получения задачи: %v", err)
+				http.Error(w, "задача не найдена", http.StatusNotFound)
+				return
+			}
+			log.Printf("неожиданная ошибка получения задачи: %v", err)
+			http.Error(w, "внутренняя ошибка сервера", http.StatusInternalServerError)
 			return
 		}
 		WriteJSON(w, http.StatusOK, task)

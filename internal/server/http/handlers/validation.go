@@ -3,12 +3,14 @@ package handlers
 import (
 	"errors"
 	"strings"
+
+	"github.com/google/uuid"
 )
 
 // validateTaskDescription проверяет корректность описания задачи
 func validateTaskDescription(description string) error {
 	// Проверка на пустую строку
-	if strings.TrimSpace(description) == "" {
+	if description == "" {
 		return errors.New("описание задачи не может быть пустым")
 	}
 
@@ -30,22 +32,10 @@ func validateTaskDescription(description string) error {
 	return nil
 }
 
-// validateTaskID проверяет корректность ID задачи
-func validateTaskID(id string) error {
-	// Проверка на пустой ID
-	if strings.TrimSpace(id) == "" {
-		return errors.New("ID задачи не может быть пустым")
+func validateTaskID(id string) (uuid.UUID, error) {
+	parsedID, err := uuid.Parse(id)
+	if err != nil {
+		return uuid.Nil, errors.New("ID задачи должен быть корректным UUID")
 	}
-
-	// Проверка минимальной длины (UUID обычно 36 символов)
-	if len(id) < 10 {
-		return errors.New("ID задачи слишком короткий")
-	}
-
-	// Проверка максимальной длины
-	if len(id) > 100 {
-		return errors.New("ID задачи слишком длинный")
-	}
-
-	return nil
+	return parsedID, nil
 }

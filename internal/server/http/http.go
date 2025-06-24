@@ -6,11 +6,10 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
-	"awesomeProject36/internal/domain/service"
-	handlers "awesomeProject36/internal/server/http/handlers"
+	"github.com/RinatKaumov/workmate_testovoe/internal/domain/service"
+	handlers "github.com/RinatKaumov/workmate_testovoe/internal/server/http/handlers"
 )
 
-// Server обёртка для сервиса задач и роутера
 type Server struct {
 	service *service.TaskService
 	router  *chi.Mux

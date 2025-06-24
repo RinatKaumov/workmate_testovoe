@@ -1,9 +1,10 @@
 package handlers
 
 import (
-	"awesomeProject36/internal/domain/service"
 	"log"
 	"net/http"
+
+	"github.com/RinatKaumov/workmate_testovoe/internal/domain/service"
 )
 
 func HandleListTasks(taskService *service.TaskService) http.HandlerFunc {

@@ -4,15 +4,16 @@ import (
 	"context"
 	"errors"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
-	repo "awesomeProject36/internal/dal/repository"
-	"awesomeProject36/internal/domain/service"
-	server "awesomeProject36/internal/server/http"
+	repo "github.com/RinatKaumov/workmate_testovoe/internal/dal/repository"
+	"github.com/RinatKaumov/workmate_testovoe/internal/domain/service"
+	server "github.com/RinatKaumov/workmate_testovoe/internal/server/http"
 )
 
 func main() {
@@ -25,7 +26,7 @@ func main() {
 	if port == "" {
 		port = "8080"
 	}
-	addr := ":" + port
+	addr := net.JoinHostPort("", port)
 
 	httpServer := &http.Server{
 		Addr:    addr,

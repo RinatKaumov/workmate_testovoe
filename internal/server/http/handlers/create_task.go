@@ -1,10 +1,11 @@
 package handlers
 
 import (
-	"awesomeProject36/internal/domain/service"
 	"encoding/json"
 	"log"
 	"net/http"
+
+	"github.com/RinatKaumov/workmate_testovoe/internal/domain/service"
 )
 
 func HandleCreateTask(taskService *service.TaskService) http.HandlerFunc {
@@ -20,7 +21,6 @@ func HandleCreateTask(taskService *service.TaskService) http.HandlerFunc {
 			return
 		}
 
-		// Валидация описания задачи
 		if err := validateTaskDescription(req.Description); err != nil {
 			log.Printf("ошибка валидации описания: %v", err)
 			http.Error(w, err.Error(), http.StatusBadRequest)

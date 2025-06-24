@@ -1,6 +1,10 @@
 package entity
 
-import "time"
+import (
+	"time"
+
+	"github.com/google/uuid"
+)
 
 type TaskStatus string
 
@@ -12,16 +16,12 @@ const (
 )
 
 type Task struct {
-	ID          string
+	ID          uuid.UUID
 	Description string
 	Status      TaskStatus
 	CreatedAt   time.Time
 	StartedAt   *time.Time
 	FinishedAt  *time.Time
-	Result      *string
-	Error       *string
-}
-
-func Now() time.Time {
-	return time.Now().UTC()
+	Result      string
+	Error       string
 }

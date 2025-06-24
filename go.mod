@@ -1,4 +1,4 @@
-module awesomeProject36
+module github.com/RinatKaumov/workmate_testovoe
 
 go 1.23.1
 

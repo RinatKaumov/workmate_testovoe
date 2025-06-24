@@ -3,32 +3,50 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math/rand"
 	"time"
 
-	"awesomeProject36/internal/dal/entity"
-	"awesomeProject36/internal/dal/repository"
-	"awesomeProject36/internal/domain/model"
+	"github.com/google/uuid"
+
+	"github.com/RinatKaumov/workmate_testovoe/internal/dal/entity"
+	"github.com/RinatKaumov/workmate_testovoe/internal/dal/repository"
+	"github.com/RinatKaumov/workmate_testovoe/internal/domain/model"
 )
+
+var ErrTaskNotFound = errors.New("service: task not found")
+
+// taskRepository — это интерфейс, описывающий, что именно нужно TaskService
+// от хранилища задач.
+type taskRepository interface {
+	Create(ctx context.Context, task *entity.Task) error
+	GetByID(ctx context.Context, id uuid.UUID) (*entity.Task, error)
+	DeleteByID(ctx context.Context, id uuid.UUID) error
+	List(ctx context.Context) ([]*entity.Task, error)
+	Update(ctx context.Context, task *entity.Task) error
+}
 
 // TaskService инкапсулирует бизнес-логику задач.
 type TaskService struct {
-	repo repository.TaskRepository
+	repo taskRepository
 }
 
 // NewTaskService создает новый сервис задач.
-func NewTaskService(repo repository.TaskRepository) *TaskService {
+func NewTaskService(repo taskRepository) *TaskService {
 	return &TaskService{repo: repo}
 }
 
 // CreateTask создает задачу и запускает ее асинхронно.
 func (s *TaskService) CreateTask(ctx context.Context, description string) (*model.Task, error) {
-	// Валидация на уровне бизнес-логики
-	if err := s.validateTaskCreation(description); err != nil {
-		return nil, err
+	now := time.Now().UTC()
+	entityTask := &entity.Task{
+		ID:          uuid.New(),
+		Description: description,
+		Status:      entity.StatusPending,
+		CreatedAt:   now,
 	}
 
-	entityTask, err := s.repo.Create(description)
+	err := s.repo.Create(ctx, entityTask)
 	if err != nil {
 		return nil, err
 	}
@@ -36,89 +54,98 @@ func (s *TaskService) CreateTask(ctx context.Context, description string) (*mode
 	// Запускаем задачу в фоне
 	go s.runTask(entityTask.ID)
 
-	return toModel(entityTask), nil
-}
-
-// validateTaskCreation проверяет возможность создания задачи
-func (s *TaskService) validateTaskCreation(description string) error {
-	// Дополнительная бизнес-логика валидации
-	// Например, проверка на дубликаты описаний
-	// Или проверка лимитов на количество задач
-
-	// Здесь можно добавить более сложную логику
-	// Например, проверку на максимальное количество активных задач
-	// или проверку на дубликаты описаний
-
-	return nil
+	return toModel(entityTask)
 }
 
 // runTask — имитация долгой задачи (3-5 минут)
-func (s *TaskService) runTask(id string) {
+func (s *TaskService) runTask(id uuid.UUID) {
+	ctx := context.Background()
 	// Обновляем статус задачи на running
-	task, ok := s.repo.GetByID(id)
-	if !ok {
-		return // задача пропала из репо
+	task, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return // задача пропала из репо или другая ошибка
 	}
 
 	now := time.Now().UTC()
 	task.Status = entity.StatusRunning
 	task.StartedAt = &now
-	s.repo.Update(task)
+	if err := s.repo.Update(ctx, task); err != nil {
+		fmt.Printf("ошибка обновления задачи (running): %v\n", err)
+		return
+	}
 
 	// Долгая работа (например, 3-5 минут)
 	duration := 3*time.Minute + time.Duration(rand.Intn(3))*time.Minute
 	time.Sleep(duration)
 
 	// По завершении обновляем статус и результат
-	task, ok = s.repo.GetByID(id)
-	if !ok {
+	task, err = s.repo.GetByID(ctx, id)
+	if err != nil {
 		return
 	}
 
 	finished := time.Now().UTC()
 	task.Status = entity.StatusCompleted
 	task.FinishedAt = &finished
-	result := "result data here"
-	task.Result = &result
+	task.Result = "result data here"
 
-	err := s.repo.Update(task)
-	if err != nil {
+	if err := s.repo.Update(ctx, task); err != nil {
 		return
 	}
 }
 
 // GetTask возвращает задачу по ID.
-func (s *TaskService) GetTask(ctx context.Context, id string) (*model.Task, error) {
-	entityTask, ok := s.repo.GetByID(id)
-	if !ok {
-		return nil, errors.New("task not found")
+func (s *TaskService) GetTask(ctx context.Context, id uuid.UUID) (*model.Task, error) {
+	entityTask, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return nil, ErrTaskNotFound
+		}
+		return nil, err
 	}
-	return toModel(entityTask), nil
+	return toModel(entityTask)
 }
 
 // DeleteTask удаляет задачу по ID.
-func (s *TaskService) DeleteTask(ctx context.Context, id string) error {
-	deleted := s.repo.DeleteByID(id)
-	if !deleted {
-		return errors.New("task not found")
+func (s *TaskService) DeleteTask(ctx context.Context, id uuid.UUID) error {
+	err := s.repo.DeleteByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return ErrTaskNotFound
+		}
+		return err
 	}
 	return nil
 }
 
 // ListTasks возвращает список всех задач.
 func (s *TaskService) ListTasks(ctx context.Context) ([]*model.Task, error) {
-	entityTasks := s.repo.List()
-	tasks := make([]*model.Task, len(entityTasks))
-	for i, task := range entityTasks {
-		tasks[i] = toModel(task)
+	entityTasks, err := s.repo.List(ctx)
+	if err != nil {
+		return nil, err // Пробрасываем ошибку репозитория наверх
+	}
+
+	if len(entityTasks) == 0 {
+		return []*model.Task{}, nil
+	}
+
+	tasks := make([]*model.Task, 0, len(entityTasks))
+	for _, taskEntity := range entityTasks {
+		taskModel, err := toModel(taskEntity)
+		if err != nil {
+			// В реальном приложении здесь может быть логирование
+			// Мы пропустим "сломанную" задачу, но не будем прерывать весь запрос
+			continue
+		}
+		tasks = append(tasks, taskModel)
 	}
 	return tasks, nil
 }
 
 // toModel конвертирует entity.Task в model.Task
-func toModel(e *entity.Task) *model.Task {
+func toModel(e *entity.Task) (*model.Task, error) {
 	if e == nil {
-		return nil
+		return nil, errors.New("cannot convert nil entity task to model")
 	}
 
 	var duration *int64
@@ -134,7 +161,7 @@ func toModel(e *entity.Task) *model.Task {
 	}
 
 	return &model.Task{
-		ID:          e.ID,
+		ID:          e.ID.String(),
 		Description: e.Description,
 		Status:      model.TaskStatus(e.Status),
 		CreatedAt:   e.CreatedAt,
@@ -143,16 +170,20 @@ func toModel(e *entity.Task) *model.Task {
 		Result:      e.Result,
 		Error:       e.Error,
 		Duration:    duration,
-	}
+	}, nil
 }
 
 // toEntity — если понадобится обратное преобразование
-func toEntity(m *model.Task) *entity.Task {
+func toEntity(m *model.Task) (*entity.Task, error) {
 	if m == nil {
-		return nil
+		return nil, errors.New("cannot convert nil model task to entity")
+	}
+	parsedID, err := uuid.Parse(m.ID)
+	if err != nil {
+		return nil, fmt.Errorf("cannot parse task ID: %w", err)
 	}
 	return &entity.Task{
-		ID:          m.ID,
+		ID:          parsedID,
 		Description: m.Description,
 		Status:      entity.TaskStatus(m.Status),
 		CreatedAt:   m.CreatedAt,
@@ -160,5 +191,5 @@ func toEntity(m *model.Task) *entity.Task {
 		FinishedAt:  m.FinishedAt,
 		Result:      m.Result,
 		Error:       m.Error,
-	}
+	}, nil
 }
